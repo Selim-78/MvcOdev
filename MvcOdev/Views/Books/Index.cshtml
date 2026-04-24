@@ -1,46 +1,51 @@
 ﻿@model IEnumerable<MvcOdev.Models.Book>
 
 @{
-    ViewData["Title"] = "Index";
+    ViewData["Title"] = "Kitap Listesi";
 }
 
-<h1>Kitap Listesi</h1>
+<div class="container mt-4">
+    <h2>Kitaplar</h2>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success">
-        @TempData["SuccessMessage"]
-    </div>
-}
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
 
-<p>
-    <a asp-action="Create" class="btn btn-primary">Yeni Kitap Ekle</a>
-</p>
+    <p>
+        <a asp-action="Create" class="btn btn-primary">Yeni Kitap Ekle</a>
+    </p>
 
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>@Html.DisplayNameFor(model => model.Title)</th>
-            <th>@Html.DisplayNameFor(model => model.Author)</th>
-            <th>@Html.DisplayNameFor(model => model.Price)</th>
-            <th>@Html.DisplayNameFor(model => model.Stock)</th>
-            <th>İşlemler</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var item in Model)
-        {
+    <table class="table table-bordered table-striped">
+        <thead>
             <tr>
-                <td>@Html.DisplayFor(modelItem => item.Title)</td>
-                <td>@Html.DisplayFor(modelItem => item.Author)</td>
-                <td>@Html.DisplayFor(modelItem => item.Price)</td>
-                <td>@Html.DisplayFor(modelItem => item.Stock)</td>
-                <td>
-                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning">Düzenle</a> |
-                    <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info">Detay</a> |
-                    <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger">Sil</a>
-                </td>
+                <th>Kitap</th>
+                <th>Yazar</th>
+                <th>Fiyat</th>
+                <th>Stok</th>
+                <th>Kategori</th>
+                <th>İşlem</th>
             </tr>
-        }
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>@item.Title</td>
+                    <td>@item.Author</td>
+                    <td>@item.Price.ToString("C2")</td>
+                    <td>@item.Stock</td>
+                    <td>@(item.Category != null ? item.Category.Name : "Kategori Yok")</td>
+                    <td>
+                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning">Güncelle</a>
+
+                        <form asp-action="Remove" asp-route-id="@item.Id" method="post" style="display:inline;" onsubmit="return confirm('Bu kitabı silmek istediğinize emin misiniz?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-danger">Sil</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

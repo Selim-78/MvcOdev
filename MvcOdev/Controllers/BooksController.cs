@@ -1,9 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using MvcOdev.Data;
 using MvcOdev.Models;
-using System.Threading.Tasks;
-using System.Linq;
 
 namespace MvcOdev.Controllers
 {
@@ -18,85 +17,76 @@ namespace MvcOdev.Controllers
 
         public async Task<IActionResult> Index()
         {
-            return View(await _context.Books.ToListAsync());
+            var books = await _context.Books.Include(b => b.Category).ToListAsync();
+            return View(books);
         }
 
-        public async Task<IActionResult> Details(int? id)
+        [HttpGet]
+        public async Task<IActionResult> Create()
         {
-            if (id == null) return NotFound();
-
-            var book = await _context.Books.FirstOrDefaultAsync(m => m.Id == id);
-            if (book == null) return NotFound();
-
-            return View(book);
-        }
-
-        public IActionResult Create()
-        {
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name");
             return View();
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Book book)
+        public async Task<IActionResult> Create(Book newBook)
         {
             if (ModelState.IsValid)
             {
-                _context.Add(book);
+                _context.Books.Add(newBook);
                 await _context.SaveChangesAsync();
                 TempData["SuccessMessage"] = "Kitap başarıyla eklendi!";
                 return RedirectToAction(nameof(Index));
             }
-            return View(book);
+
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", newBook.CategoryId);
+            return View(newBook);
         }
 
-        public async Task<IActionResult> Edit(int? id)
+        [HttpGet]
+        public async Task<IActionResult> Edit(int id)
         {
-            if (id == null) return NotFound();
-
             var book = await _context.Books.FindAsync(id);
-            if (book == null) return NotFound();
+            if (book == null)
+            {
+                return NotFound();
+            }
 
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", book.CategoryId);
             return View(book);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, Book book)
+        public async Task<IActionResult> Edit(Book updatedBook)
         {
-            if (id != book.Id) return NotFound();
-
             if (ModelState.IsValid)
             {
                 try
                 {
-                    _context.Update(book);
+                    _context.Books.Update(updatedBook);
                     await _context.SaveChangesAsync();
                     TempData["SuccessMessage"] = "Kitap başarıyla güncellendi!";
+                    return RedirectToAction(nameof(Index));
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!BookExists(book.Id)) return NotFound();
-                    else throw;
+                    if (!_context.Books.Any(e => e.Id == updatedBook.Id))
+                    {
+                        return NotFound();
+                    }
+                    throw;
                 }
-                return RedirectToAction(nameof(Index));
             }
-            return View(book);
+
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", updatedBook.CategoryId);
+            return View(updatedBook);
         }
 
-        public async Task<IActionResult> Delete(int? id)
-        {
-            if (id == null) return NotFound();
-
-            var book = await _context.Books.FirstOrDefaultAsync(m => m.Id == id);
-            if (book == null) return NotFound();
-
-            return View(book);
-        }
-
-        [HttpPost, ActionName("Delete")]
+        [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
+        public async Task<IActionResult> Remove(int id)
         {
             var book = await _context.Books.FindAsync(id);
             if (book != null)
@@ -106,11 +96,6 @@ namespace MvcOdev.Controllers
                 TempData["SuccessMessage"] = "Kitap başarıyla silindi!";
             }
             return RedirectToAction(nameof(Index));
-        }
-
-        private bool BookExists(int id)
-        {
-            return _context.Books.Any(e => e.Id == id);
         }
     }
 }
