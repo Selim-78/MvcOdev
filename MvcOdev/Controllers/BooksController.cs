@@ -15,10 +15,38 @@ namespace MvcOdev.Controllers
             _context = context;
         }
 
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string searchString, int? categoryId, string sortOrder)
         {
-            var books = await _context.Books.Include(b => b.Category).ToListAsync();
-            return View(books);
+            ViewBag.CurrentSearch = searchString;
+            ViewBag.CurrentCategory = categoryId;
+            ViewBag.CurrentSort = sortOrder;
+
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", categoryId);
+
+            var booksQuery = _context.Books.Include(b => b.Category).AsQueryable();
+
+            if (!string.IsNullOrEmpty(searchString))
+            {
+                booksQuery = booksQuery.Where(b => b.Title.Contains(searchString));
+            }
+
+            if (categoryId.HasValue)
+            {
+                booksQuery = booksQuery.Where(b => b.CategoryId == categoryId);
+            }
+
+            booksQuery = sortOrder switch
+            {
+                "name_desc" => booksQuery.OrderByDescending(b => b.Title),
+                "price_asc" => booksQuery.OrderBy(b => b.Price),
+                "price_desc" => booksQuery.OrderByDescending(b => b.Price),
+                "stock_asc" => booksQuery.OrderBy(b => b.Stock),
+                "stock_desc" => booksQuery.OrderByDescending(b => b.Stock),
+                _ => booksQuery.OrderBy(b => b.Title)
+            };
+
+            var result = await booksQuery.ToListAsync();
+            return View(result);
         }
 
         [HttpGet]
@@ -36,10 +64,8 @@ namespace MvcOdev.Controllers
             {
                 _context.Books.Add(newBook);
                 await _context.SaveChangesAsync();
-                TempData["SuccessMessage"] = "Kitap başarıyla eklendi!";
                 return RedirectToAction(nameof(Index));
             }
-
             ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", newBook.CategoryId);
             return View(newBook);
         }
@@ -52,7 +78,6 @@ namespace MvcOdev.Controllers
             {
                 return NotFound();
             }
-
             ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", book.CategoryId);
             return View(book);
         }
@@ -63,37 +88,21 @@ namespace MvcOdev.Controllers
         {
             if (ModelState.IsValid)
             {
-                try
-                {
-                    _context.Books.Update(updatedBook);
-                    await _context.SaveChangesAsync();
-                    TempData["SuccessMessage"] = "Kitap başarıyla güncellendi!";
-                    return RedirectToAction(nameof(Index));
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!_context.Books.Any(e => e.Id == updatedBook.Id))
-                    {
-                        return NotFound();
-                    }
-                    throw;
-                }
+                _context.Books.Update(updatedBook);
+                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
             }
-
             ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", updatedBook.CategoryId);
             return View(updatedBook);
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Remove(int id)
+        public async Task<IActionResult> Delete(int id)
         {
             var book = await _context.Books.FindAsync(id);
             if (book != null)
             {
                 _context.Books.Remove(book);
                 await _context.SaveChangesAsync();
-                TempData["SuccessMessage"] = "Kitap başarıyla silindi!";
             }
             return RedirectToAction(nameof(Index));
         }
