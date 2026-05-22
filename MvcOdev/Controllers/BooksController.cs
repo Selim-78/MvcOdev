@@ -49,6 +49,25 @@ namespace MvcOdev.Controllers
             return View(result);
         }
 
+        public async Task<IActionResult> Details(int? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var book = await _context.Books
+                .Include(b => b.Category)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (book == null)
+            {
+                return NotFound();
+            }
+
+            return View(book);
+        }
+
         [HttpGet]
         public async Task<IActionResult> Create()
         {
