@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using MvcOdev.Data;
@@ -15,38 +16,36 @@ namespace MvcOdev.Controllers
             _context = context;
         }
 
-        public async Task<IActionResult> Index(string searchString, int? categoryId, string sortOrder)
+        public async Task<IActionResult> Index(string aramaMetni, int? kategoriId, string siralama)
         {
-            ViewBag.CurrentSearch = searchString;
-            ViewBag.CurrentCategory = categoryId;
-            ViewBag.CurrentSort = sortOrder;
+            ViewBag.CurrentFilter = aramaMetni;
+            ViewBag.CurrentCategory = kategoriId;
+            ViewBag.PriceSortParam = string.IsNullOrEmpty(siralama) ? "price_desc" : "";
 
-            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", categoryId);
+            var kitaplarSorgusu = _context.Books.Include(b => b.Category).AsQueryable();
 
-            var booksQuery = _context.Books.Include(b => b.Category).AsQueryable();
-
-            if (!string.IsNullOrEmpty(searchString))
+            if (!string.IsNullOrEmpty(aramaMetni))
             {
-                booksQuery = booksQuery.Where(b => b.Title.Contains(searchString));
+                kitaplarSorgusu = kitaplarSorgusu.Where(b => b.Title.Contains(aramaMetni) || b.Author.Contains(aramaMetni));
             }
 
-            if (categoryId.HasValue)
+            if (kategoriId.HasValue)
             {
-                booksQuery = booksQuery.Where(b => b.CategoryId == categoryId);
+                kitaplarSorgusu = kitaplarSorgusu.Where(b => b.CategoryId == kategoriId);
             }
 
-            booksQuery = sortOrder switch
+            switch (siralama)
             {
-                "name_desc" => booksQuery.OrderByDescending(b => b.Title),
-                "price_asc" => booksQuery.OrderBy(b => b.Price),
-                "price_desc" => booksQuery.OrderByDescending(b => b.Price),
-                "stock_asc" => booksQuery.OrderBy(b => b.Stock),
-                "stock_desc" => booksQuery.OrderByDescending(b => b.Stock),
-                _ => booksQuery.OrderBy(b => b.Title)
-            };
+                case "price_desc":
+                    kitaplarSorgusu = kitaplarSorgusu.OrderByDescending(b => b.Price);
+                    break;
+                default:
+                    kitaplarSorgusu = kitaplarSorgusu.OrderBy(b => b.Price);
+                    break;
+            }
 
-            var result = await booksQuery.ToListAsync();
-            return View(result);
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name");
+            return View(await kitaplarSorgusu.ToListAsync());
         }
 
         public async Task<IActionResult> Details(int? id)
@@ -56,19 +55,19 @@ namespace MvcOdev.Controllers
                 return NotFound();
             }
 
-            var book = await _context.Books
+            var kitap = await _context.Books
                 .Include(b => b.Category)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (book == null)
+            if (kitap == null)
             {
                 return NotFound();
             }
 
-            return View(book);
+            return View(kitap);
         }
 
-        [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create()
         {
             ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name");
@@ -77,50 +76,80 @@ namespace MvcOdev.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Book newBook)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Create(Book yeniKitap)
         {
             if (ModelState.IsValid)
             {
-                _context.Books.Add(newBook);
+                _context.Add(yeniKitap);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", newBook.CategoryId);
-            return View(newBook);
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", yeniKitap.CategoryId);
+            return View(yeniKitap);
         }
 
-        [HttpGet]
-        public async Task<IActionResult> Edit(int id)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Edit(int? id)
         {
-            var book = await _context.Books.FindAsync(id);
-            if (book == null)
+            if (id == null)
             {
                 return NotFound();
             }
-            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", book.CategoryId);
-            return View(book);
+
+            var kitap = await _context.Books.FindAsync(id);
+            if (kitap == null)
+            {
+                return NotFound();
+            }
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", kitap.CategoryId);
+            return View(kitap);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(Book updatedBook)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Edit(Book guncelKitap)
         {
             if (ModelState.IsValid)
             {
-                _context.Books.Update(updatedBook);
+                _context.Update(guncelKitap);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", updatedBook.CategoryId);
-            return View(updatedBook);
+            ViewBag.Categories = new SelectList(await _context.Categories.ToListAsync(), "Id", "Name", guncelKitap.CategoryId);
+            return View(guncelKitap);
         }
 
-        public async Task<IActionResult> Delete(int id)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Delete(int? id)
         {
-            var book = await _context.Books.FindAsync(id);
-            if (book != null)
+            if (id == null)
             {
-                _context.Books.Remove(book);
+                return NotFound();
+            }
+
+            var kitap = await _context.Books
+                .Include(b => b.Category)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (kitap == null)
+            {
+                return NotFound();
+            }
+
+            return View(kitap);
+        }
+
+        [HttpPost, ActionName("Delete")]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteConfirmed(int id)
+        {
+            var kitap = await _context.Books.FindAsync(id);
+            if (kitap != null)
+            {
+                _context.Books.Remove(kitap);
                 await _context.SaveChangesAsync();
             }
             return RedirectToAction(nameof(Index));
